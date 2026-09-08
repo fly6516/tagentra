@@ -51,6 +51,16 @@ def main() -> None:
             raise RuntimeError(f"RRG API changed: {symbol} is absent from {pm3_header}")
 
     text = cmake_path.read_text(encoding="utf-8")
+    legacy_compile_options = "target_compile_options(pm3rrg_rdv4 PUBLIC -Wall -Werror -O3)"
+    current_compile_options = "target_compile_options(pm3rrg_rdv4 PUBLIC -Wall -O3)"
+    legacy_count = text.count(legacy_compile_options)
+    current_count = text.count(current_compile_options)
+    if legacy_count == 1 and current_count == 0:
+        text = text.replace(legacy_compile_options, current_compile_options, 1)
+    elif legacy_count != 0 or current_count != 1:
+        raise RuntimeError(
+            "RRG compile options changed: expected one known pm3rrg_rdv4 option set"
+        )
     text = replace_once(
         text,
         "# If cross-compiled, we need to init source and build.\nif (CMAKE_TOOLCHAIN_FILE)\n",
@@ -97,6 +107,27 @@ def main() -> None:
         "Apple dynamic_lookup linker option",
     )
     cmake_path.write_text(text, encoding="utf-8", newline="\n")
+
+    pm3 = pm3_source.read_text(encoding="utf-8")
+    pm3_open_start = (
+        "pm3_device_t *pm3_open(const char *port) {\n"
+        "    pm3_init();\n"
+        "    preferences_load();\n"
+    )
+    pm3_open_ios = (
+        "pm3_device_t *pm3_open(const char *port) {\n"
+        "    pm3_init();\n"
+        "    preferences_load();\n"
+        "#ifdef TAGENTRA_PM3_IOS\n"
+        "    // A null port explicitly requests command-only offline mode.\n"
+        "    if (port == NULL) {\n"
+        "        PrintAndLogEx(INFO, _RED_(\"OFFLINE\") \" mode\");\n"
+        "        return g_session.current_device;\n"
+        "    }\n"
+        "#endif\n"
+    )
+    pm3 = replace_once(pm3, pm3_open_start, pm3_open_ios, "pm3_open initializer")
+    pm3_source.write_text(pm3, encoding="utf-8", newline="\n")
 
     util = util_source.read_text(encoding="utf-8")
     function_start = "int kbd_enter_pressed(void) {\n"

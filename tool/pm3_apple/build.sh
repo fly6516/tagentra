@@ -88,8 +88,7 @@ build_slice() {
     -DCMAKE_SYSTEM_PROCESSOR="$arch" \
     -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 \
     -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_C_FLAGS="-DLUA_USE_IOS -Wno-error" \
-    -DCMAKE_CXX_FLAGS=-Wno-error \
+    -DCMAKE_C_FLAGS=-DLUA_USE_IOS \
     -DCMAKE_INSTALL_NAME_DIR='@rpath' \
     -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO \
     -DTAGENTRA_EXTERNAL_CFLAGS="-arch $arch -isysroot $sdk_path $deployment_flag" \

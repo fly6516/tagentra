@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #import <Foundation/Foundation.h>
+#import <dispatch/dispatch.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include "TagentraPM3Core.h"
 
@@ -21,7 +23,7 @@ static int fail(const char *message) {
     return 1;
 }
 
-int main(void) {
+static int run_smoke(void) {
     @autoreleasepool {
         if (tagentra_pm3_abi_version() != TAGENTRA_PM3_ABI_VERSION) return fail("ABI version");
         const char *revision = tagentra_pm3_upstream_revision();
@@ -37,5 +39,33 @@ int main(void) {
         tagentra_pm3_shutdown();
         fprintf(stderr, "TAGENTRA_PM3_SMOKE_OK revision=%s output_bytes=%zu\n", revision, output_bytes);
         return 0;
+    }
+}
+
+@interface SmokeAppDelegate : UIResponder <UIApplicationDelegate>
+@property(nonatomic, strong) UIWindow *window;
+@end
+
+@implementation SmokeAppDelegate
+- (BOOL)application:(UIApplication *)application
+        didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
+    (void)application;
+    (void)launchOptions;
+    self.window = [[UIWindow alloc] initWithFrame:UIScreen.mainScreen.bounds];
+    self.window.rootViewController = [[UIViewController alloc] init];
+    [self.window makeKeyAndVisible];
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        int result = run_smoke();
+        fflush(stdout);
+        fflush(stderr);
+        exit(result);
+    });
+    return YES;
+}
+@end
+
+int main(int argc, char *argv[]) {
+    @autoreleasepool {
+        return UIApplicationMain(argc, argv, nil, NSStringFromClass(SmokeAppDelegate.class));
     }
 }
