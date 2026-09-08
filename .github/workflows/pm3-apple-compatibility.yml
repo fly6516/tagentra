@@ -1,0 +1,51 @@
+name: PM3 Apple compatibility
+
+on:
+  push:
+    paths:
+      - '.github/workflows/pm3-apple-compatibility.yml'
+      - 'native/pm3_apple_shim/**'
+      - 'tool/pm3_apple/**'
+      - 'LICENSE'
+      - 'THIRD_PARTY_NOTICES.md'
+  pull_request:
+    paths:
+      - '.github/workflows/pm3-apple-compatibility.yml'
+      - 'native/pm3_apple_shim/**'
+      - 'tool/pm3_apple/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-smoke-test:
+    name: RRG ${{ matrix.ref }}
+    runs-on: macos-15
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        ref: [v4.19552, v4.20469, v4.21128, v4.21611]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build XCFramework
+        run: ./tool/pm3_apple/build.sh --ref '${{ matrix.ref }}'
+      - name: Read pinned revision
+        id: revision
+        run: |
+          revision="$(python3 -c 'import json; print(json.load(open("artifacts/TagentraPM3Core-build.json"))["upstream_revision"])')"
+          echo "sha=$revision" >> "$GITHUB_OUTPUT"
+      - name: Link and run simulator smoke test
+        run: ./tool/pm3_apple/smoke_test.sh artifacts/TagentraPM3Core.xcframework '${{ steps.revision.outputs.sha }}'
+      - name: Upload XCFramework
+        uses: actions/upload-artifact@v4
+        with:
+          name: TagentraPM3Core-${{ matrix.ref }}
+          path: |
+            artifacts/TagentraPM3Core.xcframework
+            artifacts/TagentraPM3Core-build.json
+            artifacts/LICENSE
+            artifacts/THIRD_PARTY_NOTICES.md
+          retention-days: 7
+          if-no-files-found: error
