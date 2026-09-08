@@ -28,11 +28,12 @@ def main() -> None:
     cmake_path = source / "client" / "experimental_lib" / "CMakeLists.txt"
     pm3_header = source / "client" / "include" / "pm3.h"
     pm3_source = source / "client" / "src" / "pm3.c"
+    cmdparser_source = source / "client" / "src" / "cmdparser.c"
     util_source = source / "client" / "src" / "util.c"
     source_shim_header = shim / "include" / "TagentraPM3Core.h"
     source_shim_source = shim / "src" / "TagentraPM3Core.c"
 
-    for required in (cmake_path, pm3_header, pm3_source, util_source, source_shim_header, source_shim_source):
+    for required in (cmake_path, pm3_header, pm3_source, cmdparser_source, util_source, source_shim_header, source_shim_source):
         if not required.is_file():
             raise RuntimeError(f"required file is missing: {required}")
 
@@ -69,7 +70,7 @@ def main() -> None:
     text = replace_once(
         text,
         "target_compile_definitions(pm3rrg_rdv4 PRIVATE LIBPM3)",
-        "target_compile_definitions(pm3rrg_rdv4 PRIVATE LIBPM3 "
+        "target_compile_definitions(pm3rrg_rdv4 PRIVATE LIBPM3 TAGENTRA_PM3_IOS "
         f"TAGENTRA_PM3_REVISION=\\\"{args.revision}\\\")\n"
         "set_target_properties(pm3rrg_rdv4 PROPERTIES\n"
         "        FRAMEWORK TRUE\n"
@@ -110,6 +111,27 @@ def main() -> None:
         "    }\n",
     )
     util_source.write_text(util, encoding="utf-8", newline="\n")
+
+    cmdparser = cmdparser_source.read_text(encoding="utf-8")
+    system_call = (
+        "#else\n"
+        "    ret = system(command);\n"
+        "#endif\n"
+    )
+    ios_system_call = (
+        "#elif defined(TAGENTRA_PM3_IOS)\n"
+        "    // iOS marks system() unavailable; shell escapes are unsupported.\n"
+        "    (void)command;\n"
+        "    ret = -1;\n"
+        "#else\n"
+        "    ret = system(command);\n"
+        "#endif\n"
+    )
+    if cmdparser.count(system_call) == 1:
+        cmdparser = cmdparser.replace(system_call, ios_system_call, 1)
+    elif "system(" in cmdparser:
+        raise RuntimeError("RRG system command implementation changed")
+    cmdparser_source.write_text(cmdparser, encoding="utf-8", newline="\n")
 
 
 if __name__ == "__main__":
