@@ -1,57 +1,83 @@
 # Tagentra
 
-Tagentra is a cross-platform RFID device workbench for compatible Proxmark3
-and Chameleon devices. The application is being developed in Flutter. The
-first native milestone validates that several RRG Proxmark3 client revisions
-can be packaged for iOS behind a small, stable C ABI.
+Tagentra is an offline-first RFID workbench for PM3 SE Hub Mini. The first
+release targets iOS 15+ and is licensed under GPL-3.0-or-later.
 
-## Apple PM3 core proof of concept
+The app now contains a Material device/workbench/card-library/settings shell,
+an asynchronous Flutter plugin, a CoreBluetooth Nordic UART transport, a
+loopback Network.framework TCP bridge, terminal streaming/cancellation, and an
+atomic file-based card library. It does not contain accounts, network
+authentication, announcements, analytics, or firmware updating.
 
-`TagentraPM3Core.xcframework` is generated from RRG's experimental `LIBPM3`
-target plus the shim in `native/pm3_apple_shim`. It is not checked into the
-repository. The build produces these slices:
+## PM3 Core
 
-- iOS device: arm64
-- iOS Simulator: arm64 and x86_64
-- minimum deployment target: iOS 15.0
+`TagentraPM3Core.xcframework` is built from the pinned RRG Proxmark3 release in
+`tool/pm3_apple/refs.json`. ABI v2 exposes explicit major/minor versions,
+capabilities, offline and TCP initialization, resource-root configuration,
+streamed output, cooperative cancellation, shutdown, and a copyable last-error
+message. The overlay replaces RRG's process-terminating connection error on iOS
+and checks every upstream edit point before changing the source.
 
-The checked compatibility matrix pins four upstream releases in
-`tool/pm3_apple/refs.json`. Every matrix job builds the framework, links a
-minimal consumer, boots an iOS Simulator, and calls ABI version, revision,
-initialization, `help`, invalid input, cancellation, and shutdown paths. A
-separate weekly workflow probes current RRG `master` so upstream breakage is
-visible before a pinned upgrade.
+The build produces iOS device arm64 and Simulator arm64/x86_64 slices with an
+iOS 15.0 deployment target. Required RRG resources, dictionaries, Lua libraries,
+and scripts are placed in each framework's `Resources/pm3` directory.
 
-Cancellation is cooperative. It interrupts RRG command loops that poll the
-client's keyboard-abort hook; a command blocked elsewhere returns when that
-upstream operation next reaches an abort point or timeout.
-
-On a Mac with Xcode, CMake, Git, and Python 3 installed:
+On macOS with Xcode, CMake, Git, and Python 3:
 
 ```sh
-./tool/pm3_apple/doctor.sh
 ./tool/pm3_apple/build.sh --ref v4.21611
 revision="$(python3 -c 'import json; print(json.load(open("artifacts/TagentraPM3Core-build.json"))["upstream_revision"])')"
 ./tool/pm3_apple/smoke_test.sh artifacts/TagentraPM3Core.xcframework "$revision"
+./tool/pm3_apple/package_release.sh artifacts
 ```
 
-The public ABI is declared in
-`native/pm3_apple_shim/include/TagentraPM3Core.h`. Phase one deliberately does
-not implement BLE transport, device communication, or Flutter FFI. Offline
-commands are enough to verify compilation, linking, loading, and lifecycle
-behavior across upstream revisions.
+Ordinary CI builds only `current`. The weekly upstream workflow queries the
+latest stable RRG GitHub Release, builds and tests it as `candidate`, then opens
+a review PR. It never follows `master` or promotes a release automatically.
 
-## Updating RRG
+## Immutable binary release and SwiftPM
 
-Add a release and its full commit SHA to `tool/pm3_apple/refs.json`, then add
-the release to the workflow matrix. The preparation script checks the RRG API
-and every CMake edit before changing the temporary checkout. If upstream moves
-or removes an expected integration point, the build stops with a focused
-error rather than applying a partial patch.
+Run the `Release PM3 Core` workflow manually for the first public binary. It
+fails if `pm3core-v4.21611-t1` already exists and publishes the XCFramework ZIP,
+corresponding source, build metadata, GPL license, third-party notices, and
+SHA-256 sums.
 
-## License
+The SwiftPM manifest is intentionally finalized only from the actual immutable
+asset—there is no placeholder checksum accepted by the build:
 
-Tagentra is licensed under `GPL-3.0-or-later`. See [LICENSE](LICENSE) and
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Generated PM3 binaries are
-derived from RRG Proxmark3; preserve the corresponding-source obligations
-when distributing them.
+```sh
+curl -fLO https://github.com/fly6516/tagentra/releases/download/pm3core-v4.21611-t1/TagentraPM3Core.xcframework.zip
+python3 tool/pm3_apple/configure_swiftpm.py TagentraPM3Core.xcframework.zip
+swift package --package-path packages/tagentra_pm3/ios resolve
+```
+
+Commit the generated `packages/tagentra_pm3/ios/Package.swift` after its minimal
+iOS consumer has downloaded, linked, and loaded the framework. Release tags and
+assets are immutable; bump `adapter_revision` for any rebuilt adapter.
+
+## Device transport
+
+The iOS plugin scans Nordic UART service
+`6e400001-b5a3-f393-e0a9-e50e24dcca9e`, records discovered characteristic
+properties, enables notifications, then listens on a random loopback TCP port.
+TCP writes are split using CoreBluetooth's maximum write length and paused when
+write-without-response backpressure is active; notifications are returned to
+the TCP client byte-for-byte. Only one PM3 command runs at a time.
+
+Chameleon-to-PM3 uses `REBOOTPM3`. PM3-to-Chameleon deliberately reports an
+unsupported error until the exact hardware command is captured and reviewed.
+See [the hardware validation runbook](docs/ios-hardware-validation.md).
+
+## Development
+
+```sh
+flutter pub get
+dart format --output=none --set-exit-if-changed lib test packages/tagentra_pm3/lib
+flutter analyze
+flutter test
+flutter build ios --release --no-codesign
+```
+
+Generated PM3 binaries are derived from RRG Proxmark3. Distributions must keep
+the corresponding source and notices together with the binary; see `LICENSE`
+and `THIRD_PARTY_NOTICES.md`.

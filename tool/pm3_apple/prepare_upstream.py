@@ -30,10 +30,12 @@ def main() -> None:
     pm3_source = source / "client" / "src" / "pm3.c"
     cmdparser_source = source / "client" / "src" / "cmdparser.c"
     util_source = source / "client" / "src" / "util.c"
+    ui_source = source / "client" / "src" / "ui.c"
+    proxmark_source = source / "client" / "src" / "proxmark3.c"
     source_shim_header = shim / "include" / "TagentraPM3Core.h"
     source_shim_source = shim / "src" / "TagentraPM3Core.c"
 
-    for required in (cmake_path, pm3_header, pm3_source, cmdparser_source, util_source, source_shim_header, source_shim_source):
+    for required in (cmake_path, pm3_header, pm3_source, cmdparser_source, util_source, ui_source, proxmark_source, source_shim_header, source_shim_source):
         if not required.is_file():
             raise RuntimeError(f"required file is missing: {required}")
 
@@ -127,7 +129,55 @@ def main() -> None:
         "#endif\n"
     )
     pm3 = replace_once(pm3, pm3_open_start, pm3_open_ios, "pm3_open initializer")
+    fatal_connection = (
+        "    if ((port != NULL) && (!g_session.pm3_present))\n"
+        "        exit(EXIT_FAILURE);\n"
+    )
+    safe_connection = (
+        "    if ((port != NULL) && (!g_session.pm3_present)) {\n"
+        "#ifdef TAGENTRA_PM3_IOS\n"
+        "        return NULL;\n"
+        "#else\n"
+        "        exit(EXIT_FAILURE);\n"
+        "#endif\n"
+        "    }\n"
+    )
+    pm3 = replace_once(pm3, fatal_connection, safe_connection, "fatal connection path")
     pm3_source.write_text(pm3, encoding="utf-8", newline="\n")
+
+    proxmark = proxmark_source.read_text(encoding="utf-8")
+    directory_getter = (
+        "const char *get_my_executable_directory(void) {\n"
+        "    return my_executable_directory;\n"
+        "}\n"
+    )
+    ios_directory_getter = (
+        "const char *get_my_executable_directory(void) {\n"
+        "#ifdef TAGENTRA_PM3_IOS\n"
+        "    extern const char *tagentra_pm3_resource_root_internal(void);\n"
+        "    const char *resource_root = tagentra_pm3_resource_root_internal();\n"
+        "    if (resource_root != NULL) return resource_root;\n"
+        "#endif\n"
+        "    return my_executable_directory;\n"
+        "}\n"
+    )
+    proxmark = replace_once(proxmark, directory_getter, ios_directory_getter, "executable directory getter")
+    proxmark_source.write_text(proxmark, encoding="utf-8", newline="\n")
+
+    ui = ui_source.read_text(encoding="utf-8")
+    output_point = (
+        "    bool filter_ansi = !g_session.supports_colors;\n"
+        "    memcpy_filter_ansi(buffer2, buffer, sizeof(buffer), filter_ansi);\n"
+    )
+    ios_output_point = output_point + (
+        "#ifdef TAGENTRA_PM3_IOS\n"
+        "    extern void tagentra_pm3_forward_output(const char *, size_t);\n"
+        "    tagentra_pm3_forward_output(buffer2, strlen(buffer2));\n"
+        "    if (linefeed) tagentra_pm3_forward_output(\"\\n\", 1);\n"
+        "#endif\n"
+    )
+    ui = replace_once(ui, output_point, ios_output_point, "filtered log output point")
+    ui_source.write_text(ui, encoding="utf-8", newline="\n")
 
     util = util_source.read_text(encoding="utf-8")
     function_start = "int kbd_enter_pressed(void) {\n"

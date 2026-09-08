@@ -1,0 +1,65 @@
+name: Release PM3 Core
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: macos-15
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read immutable version
+        id: version
+        run: |
+          tag="$(python3 -c 'import json; d=json.load(open("tool/pm3_apple/refs.json"))["current"]; print("pm3core-"+d["tag"]+"-t"+str(d["adapter_revision"]))')"
+          ref="$(python3 -c 'import json; print(json.load(open("tool/pm3_apple/refs.json"))["current"]["tag"])')"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "release $tag already exists; assets are immutable" >&2
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - run: ./tool/pm3_apple/build.sh --ref '${{ steps.version.outputs.ref }}'
+      - run: |
+          revision="$(jq -r .upstream_revision artifacts/TagentraPM3Core-build.json)"
+          ./tool/pm3_apple/smoke_test.sh artifacts/TagentraPM3Core.xcframework "$revision"
+      - name: Package and verify assets
+        run: ./tool/pm3_apple/package_release.sh artifacts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pm3-core-release
+          path: artifacts/
+          if-no-files-found: error
+
+  publish:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: pm3-core-release
+          path: artifacts
+      - name: Read immutable version
+        id: version
+        run: echo "tag=$(python3 -c 'import json; d=json.load(open("tool/pm3_apple/refs.json"))["current"]; print("pm3core-"+d["tag"]+"-t"+str(d["adapter_revision"]))')" >> "$GITHUB_OUTPUT"
+      - name: Reject an existing release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view '${{ steps.version.outputs.tag }}' >/dev/null 2>&1; then
+            echo "release ${{ steps.version.outputs.tag }} already exists; assets are immutable" >&2
+            exit 1
+          fi
+      - name: Publish immutable release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create '${{ steps.version.outputs.tag }}' artifacts/TagentraPM3Core.xcframework.zip artifacts/TagentraPM3Core-source.tar.gz artifacts/TagentraPM3Core-build.json artifacts/LICENSE artifacts/THIRD_PARTY_NOTICES.md artifacts/SHA256SUMS --title '${{ steps.version.outputs.tag }}' --notes 'Tagentra PM3 Core for iOS 15+. Corresponding source and GPL notices are attached.'

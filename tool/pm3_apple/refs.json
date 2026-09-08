@@ -1,6 +1,12 @@
 {
   "repository": "https://github.com/RfidResearchGroup/proxmark3.git",
-  "validated_refs": {
+  "current": {
+    "tag": "v4.21611",
+    "revision": "aaacc75e9fc4eb8d0bca4d834423a57f9b90f36f",
+    "adapter_revision": 1
+  },
+  "candidate": null,
+  "history": {
     "v4.19552": "a039ac18cc2c5ea18d7c2ffd2bb300d9c131a598",
     "v4.20469": "9fa173c727e91d296aeb0279c26b0fee9ef9ed36",
     "v4.21128": "b10235b03b5aefe5caa1b6b3e27ae446db74ef17",

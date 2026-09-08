@@ -1,0 +1,92 @@
+name: PM3 Apple upstream release
+
+on:
+  schedule:
+    - cron: '23 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  detect-build-test:
+    runs-on: macos-15
+    timeout-minutes: 90
+    outputs:
+      changed: ${{ steps.release.outputs.changed }}
+      tag: ${{ steps.release.outputs.tag }}
+      sha: ${{ steps.release.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve latest stable release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          current="$(python3 -c 'import json; print(json.load(open("tool/pm3_apple/refs.json"))["current"]["tag"])')"
+          json="$(gh api repos/RfidResearchGroup/proxmark3/releases/latest)"
+          tag="$(jq -r .tag_name <<<"$json")"
+          [[ "$(jq -r .prerelease <<<"$json")" == false ]] || { echo 'latest release is a prerelease' >&2; exit 1; }
+          sha="$(git ls-remote https://github.com/RfidResearchGroup/proxmark3.git "refs/tags/$tag^{}" | awk '{print $1}')"
+          if [[ -z "$sha" ]]; then sha="$(git ls-remote https://github.com/RfidResearchGroup/proxmark3.git "refs/tags/$tag" | awk '{print $1}')"; fi
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo 'could not resolve release commit' >&2; exit 1; }
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          if [[ "$tag" == "$current" ]]; then echo 'changed=false' >> "$GITHUB_OUTPUT"; else echo 'changed=true' >> "$GITHUB_OUTPUT"; fi
+      - name: Register candidate for checked build
+        if: steps.release.outputs.changed == 'true'
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+          SHA: ${{ steps.release.outputs.sha }}
+        run: python3 tool/pm3_apple/set_candidate.py --tag "$TAG" --revision "$SHA"
+      - name: Build candidate
+        if: steps.release.outputs.changed == 'true'
+        run: ./tool/pm3_apple/build.sh --ref '${{ steps.release.outputs.tag }}'
+      - name: Smoke test candidate
+        if: steps.release.outputs.changed == 'true'
+        run: ./tool/pm3_apple/smoke_test.sh artifacts/TagentraPM3Core.xcframework '${{ steps.release.outputs.sha }}'
+      - name: Prepare reviewed promotion
+        if: steps.release.outputs.changed == 'true'
+        run: python3 tool/pm3_apple/promote_candidate.py
+      - name: Save candidate files
+        if: steps.release.outputs.changed == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: pm3-candidate
+          path: |
+            tool/pm3_apple/refs.json
+            artifacts/TagentraPM3Core-build.json
+
+  create-upgrade-pr:
+    needs: detect-build-test
+    if: needs.detect-build-test.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: pm3-candidate
+      - name: Create upgrade pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.detect-build-test.outputs.tag }}
+          SHA: ${{ needs.detect-build-test.outputs.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          branch="automation/pm3-$TAG"
+          if gh pr list --head "$branch" --state open --json number --jq 'length > 0' | grep -q true; then
+            echo "An upgrade PR for $TAG is already open"
+            exit 0
+          fi
+          git switch -c "$branch"
+          git add tool/pm3_apple/refs.json
+          git -c user.name=github-actions -c user.email=41898282+github-actions[bot]@users.noreply.github.com commit -m "chore(pm3): stage $TAG candidate"
+          git push origin "$branch"
+          gh pr create --title "chore(pm3): validate $TAG" --body "Candidate: \`$TAG\`  
+          Commit: \`$SHA\`  
+          Three iOS slices built and smoke-tested: $RUN_URL  
+
+          Merging this PR promotes the already-tested candidate to \`current\`." --base main --head "$branch"

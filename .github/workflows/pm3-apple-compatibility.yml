@@ -20,17 +20,16 @@ permissions:
 
 jobs:
   build-and-smoke-test:
-    name: RRG ${{ matrix.ref }}
+    name: Current RRG release
     runs-on: macos-15
     timeout-minutes: 90
-    strategy:
-      fail-fast: false
-      matrix:
-        ref: [v4.19552, v4.20469, v4.21128, v4.21611]
     steps:
       - uses: actions/checkout@v4
+      - name: Read current release
+        id: current
+        run: echo "ref=$(python3 -c 'import json; print(json.load(open("tool/pm3_apple/refs.json"))["current"]["tag"])')" >> "$GITHUB_OUTPUT"
       - name: Build XCFramework
-        run: ./tool/pm3_apple/build.sh --ref '${{ matrix.ref }}'
+        run: ./tool/pm3_apple/build.sh --ref '${{ steps.current.outputs.ref }}'
       - name: Read pinned revision
         id: revision
         run: |
@@ -41,7 +40,7 @@ jobs:
       - name: Upload XCFramework
         uses: actions/upload-artifact@v4
         with:
-          name: TagentraPM3Core-${{ matrix.ref }}
+          name: TagentraPM3Core-${{ steps.current.outputs.ref }}
           path: |
             artifacts/TagentraPM3Core.xcframework
             artifacts/TagentraPM3Core-build.json

@@ -27,6 +27,10 @@ static int fail(const char *message) {
 static int run_smoke(void) {
     @autoreleasepool {
         if (tagentra_pm3_abi_version() != TAGENTRA_PM3_ABI_VERSION) return fail("ABI version");
+        if (tagentra_pm3_abi_major() != 2 || tagentra_pm3_abi_minor() != 0) return fail("ABI components");
+        if ((tagentra_pm3_capabilities() & TAGENTRA_PM3_CAP_TCP_ENDPOINT) == 0) return fail("capabilities");
+        if (tagentra_pm3_initialize_endpoint("serial:invalid") != TAGENTRA_PM3_INVALID_ARGUMENT) return fail("endpoint validation");
+        if (tagentra_pm3_last_error()[0] == '\0') return fail("last error");
         const char *revision = tagentra_pm3_upstream_revision();
         if (revision == NULL || revision[0] == '\0') return fail("upstream revision");
         if (EXPECTED_REVISION[0] != '\0' && strcmp(revision, EXPECTED_REVISION) != 0) return fail("revision mismatch");

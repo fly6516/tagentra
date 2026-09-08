@@ -38,7 +38,12 @@ PY
 EXPECTED_SHA="$(python3 - "$SCRIPT_DIR/refs.json" "$REF" <<'PY'
 import json, sys
 data = json.load(open(sys.argv[1], encoding="utf-8"))
-print(data["validated_refs"].get(sys.argv[2], ""))
+records = dict(data.get("history", {}))
+for key in ("current", "candidate"):
+    record = data.get(key)
+    if record:
+        records[record["tag"]] = record["revision"]
+print(records.get(sys.argv[2], ""))
 PY
 )"
 SLUG="$(printf '%s' "$REF" | tr -c 'A-Za-z0-9._-' '_')"
@@ -137,6 +142,12 @@ framework module TagentraPM3Core {
   module * { export * }
 }
 EOF
+  mkdir -p "$framework/Resources/pm3"
+  for resource_dir in resources dictionaries lualibs luascripts; do
+    if [[ -d "$SOURCE_DIR/client/$resource_dir" ]]; then
+      cp -R "$SOURCE_DIR/client/$resource_dir" "$framework/Resources/pm3/"
+    fi
+  done
 done
 
 XCFRAMEWORK="$OUTPUT/TagentraPM3Core.xcframework"
@@ -151,7 +162,9 @@ import datetime, json, sys
 path, ref, sha = sys.argv[1:]
 with open(path, "w", encoding="utf-8") as output:
     json.dump({
-        "abi_version": 1,
+        "abi_major": 2,
+        "abi_minor": 0,
+        "capabilities": ["tcp_endpoint", "resource_root", "streaming_output", "cooperative_cancel"],
         "upstream_repository": "https://github.com/RfidResearchGroup/proxmark3.git",
         "upstream_ref": ref,
         "upstream_revision": sha,
