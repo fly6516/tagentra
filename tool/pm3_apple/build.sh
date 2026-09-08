@@ -107,21 +107,23 @@ build_slice() {
     echo "TagentraPM3Core.framework was not produced for $name" >&2
     exit 1
   fi
-  mkdir -p "$WORK_ROOT/frameworks"
-  rm -rf "$WORK_ROOT/frameworks/$name.framework"
-  cp -R "$framework" "$WORK_ROOT/frameworks/$name.framework"
+  local destination="$WORK_ROOT/frameworks/$name/TagentraPM3Core.framework"
+  mkdir -p "$(dirname "$destination")"
+  rm -rf "$destination"
+  cp -R "$framework" "$destination"
 }
 
 build_slice device-arm64 iphoneos arm64
 build_slice simulator-arm64 iphonesimulator arm64
 build_slice simulator-x86_64 iphonesimulator x86_64
 
-DEVICE_FRAMEWORK="$WORK_ROOT/frameworks/device-arm64.framework"
-SIM_FRAMEWORK="$WORK_ROOT/frameworks/simulator.framework"
-cp -R "$WORK_ROOT/frameworks/simulator-arm64.framework" "$SIM_FRAMEWORK"
+DEVICE_FRAMEWORK="$WORK_ROOT/frameworks/device-arm64/TagentraPM3Core.framework"
+SIM_FRAMEWORK="$WORK_ROOT/frameworks/simulator-universal/TagentraPM3Core.framework"
+mkdir -p "$(dirname "$SIM_FRAMEWORK")"
+cp -R "$WORK_ROOT/frameworks/simulator-arm64/TagentraPM3Core.framework" "$SIM_FRAMEWORK"
 lipo -create \
-  "$WORK_ROOT/frameworks/simulator-arm64.framework/TagentraPM3Core" \
-  "$WORK_ROOT/frameworks/simulator-x86_64.framework/TagentraPM3Core" \
+  "$WORK_ROOT/frameworks/simulator-arm64/TagentraPM3Core.framework/TagentraPM3Core" \
+  "$WORK_ROOT/frameworks/simulator-x86_64/TagentraPM3Core.framework/TagentraPM3Core" \
   -output "$SIM_FRAMEWORK/TagentraPM3Core"
 
 for framework in "$DEVICE_FRAMEWORK" "$SIM_FRAMEWORK"; do
