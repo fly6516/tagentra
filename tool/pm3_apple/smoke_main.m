@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #import <Foundation/Foundation.h>
+#import <UIKit/UIKit.h>
 #import <dispatch/dispatch.h>
 #include <stdio.h>
 #include <stdlib.h>
