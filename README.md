@@ -20,7 +20,7 @@ and checks every upstream edit point before changing the source.
 
 The build produces iOS device arm64 and Simulator arm64/x86_64 slices with an
 iOS 15.0 deployment target. Required RRG resources, dictionaries, Lua libraries,
-and scripts are placed in each framework's `Resources/pm3` directory.
+and scripts are placed in each framework's flat-bundle `pm3` directory.
 
 On macOS with Xcode, CMake, Git, and Python 3:
 

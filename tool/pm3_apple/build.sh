@@ -142,10 +142,13 @@ framework module TagentraPM3Core {
   module * { export * }
 }
 EOF
-  mkdir -p "$framework/Resources/pm3"
+  # iOS frameworks use a flat bundle layout. A top-level Resources directory
+  # makes CoreSimulator treat the framework as a macOS-style bundle and reject
+  # its otherwise valid root Info.plist during installation.
+  mkdir -p "$framework/pm3"
   for resource_dir in resources dictionaries lualibs luascripts; do
     if [[ -d "$SOURCE_DIR/client/$resource_dir" ]]; then
-      cp -R "$SOURCE_DIR/client/$resource_dir" "$framework/Resources/pm3/"
+      cp -R "$SOURCE_DIR/client/$resource_dir" "$framework/pm3/"
     fi
   done
 done
