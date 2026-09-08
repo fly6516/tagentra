@@ -85,6 +85,7 @@ build_slice() {
     -DCMAKE_TOOLCHAIN_FILE="$SCRIPT_DIR/ios.toolchain.cmake" \
     -DCMAKE_OSX_SYSROOT="$sdk_path" \
     -DCMAKE_OSX_ARCHITECTURES="$arch" \
+    -DCMAKE_SYSTEM_PROCESSOR="$arch" \
     -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_C_FLAGS=-DLUA_USE_IOS \
