@@ -45,6 +45,7 @@ jobs:
           path: |
             artifacts/TagentraPM3Core.xcframework
             artifacts/TagentraPM3Core-build.json
+            artifacts/TagentraPM3Core-source.tar.gz
             artifacts/LICENSE
             artifacts/THIRD_PARTY_NOTICES.md
           retention-days: 7

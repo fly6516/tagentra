@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+import shutil
 
 
 def replace_once(text: str, old: str, new: str, label: str) -> str:
@@ -28,12 +29,20 @@ def main() -> None:
     pm3_header = source / "client" / "include" / "pm3.h"
     pm3_source = source / "client" / "src" / "pm3.c"
     util_source = source / "client" / "src" / "util.c"
-    shim_header = shim / "include" / "TagentraPM3Core.h"
-    shim_source = shim / "src" / "TagentraPM3Core.c"
+    source_shim_header = shim / "include" / "TagentraPM3Core.h"
+    source_shim_source = shim / "src" / "TagentraPM3Core.c"
 
-    for required in (cmake_path, pm3_header, pm3_source, util_source, shim_header, shim_source):
+    for required in (cmake_path, pm3_header, pm3_source, util_source, source_shim_header, source_shim_source):
         if not required.is_file():
             raise RuntimeError(f"required file is missing: {required}")
+
+    embedded_shim = source / "client" / "experimental_lib" / "tagentra_shim"
+    (embedded_shim / "include").mkdir(parents=True, exist_ok=True)
+    (embedded_shim / "src").mkdir(parents=True, exist_ok=True)
+    shim_header = embedded_shim / "include" / source_shim_header.name
+    shim_source = embedded_shim / "src" / source_shim_source.name
+    shutil.copy2(source_shim_header, shim_header)
+    shutil.copy2(source_shim_source, shim_source)
 
     api = pm3_header.read_text(encoding="utf-8")
     for symbol in ("pm3_open", "pm3_console", "pm3_grabbed_output_get", "pm3_close"):

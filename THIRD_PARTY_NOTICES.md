@@ -13,5 +13,8 @@ corresponding source for the exact revision recorded in
 `TagentraPM3Core-build.json`, including this repository's shim and build
 scripts, as required by the applicable licenses.
 
+CI artifacts include `TagentraPM3Core-source.tar.gz`, which contains the
+patched upstream tree and the build support used for that binary.
+
 Tagentra is an independent project. Proxmark3 is a trademark or project name
 of its respective owners; no endorsement is implied.

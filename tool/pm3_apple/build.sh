@@ -158,4 +158,7 @@ PY
 
 cp "$PROJECT_ROOT/LICENSE" "$OUTPUT/LICENSE"
 cp "$PROJECT_ROOT/THIRD_PARTY_NOTICES.md" "$OUTPUT/THIRD_PARTY_NOTICES.md"
+tar --exclude=.git -czf "$OUTPUT/TagentraPM3Core-source.tar.gz" \
+  -C "$SOURCE_DIR" . \
+  -C "$PROJECT_ROOT" tool/pm3_apple native/pm3_apple_shim LICENSE THIRD_PARTY_NOTICES.md
 echo "Created $XCFRAMEWORK from RRG $REF ($ACTUAL_SHA)"
