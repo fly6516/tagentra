@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "site_count": 221,
+  "category_counts": {
+    "developer_only": 3,
+    "managed_save_path": 121,
+    "storage_cwd": 88,
+    "system_temporary": 2,
+    "user_root": 7
+  },
+  "sha256": "5cded10cf7b28952a9c35e54fd8084d2209780b0e27ff51a38a0b9ee7bb48bfa"
+}

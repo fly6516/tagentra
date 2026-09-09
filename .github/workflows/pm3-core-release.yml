@@ -62,4 +62,4 @@ jobs:
       - name: Publish immutable release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create '${{ steps.version.outputs.tag }}' artifacts/TagentraPM3Core.xcframework.zip artifacts/TagentraPM3Core-source.tar.gz artifacts/TagentraPM3Core-build.json artifacts/LICENSE artifacts/THIRD_PARTY_NOTICES.md artifacts/SHA256SUMS --title '${{ steps.version.outputs.tag }}' --notes 'Tagentra PM3 Core for iOS 15+. Corresponding source and GPL notices are attached.'
+        run: gh release create '${{ steps.version.outputs.tag }}' artifacts/TagentraPM3Core.xcframework.zip artifacts/TagentraPM3Core-source.tar.gz artifacts/TagentraPM3Core-build.json artifacts/TagentraPM3Core-io-audit.json artifacts/LICENSE artifacts/THIRD_PARTY_NOTICES.md artifacts/SHA256SUMS --title '${{ steps.version.outputs.tag }}' --notes 'Tagentra PM3 Core for iOS 15+. Corresponding source, reviewed file-I/O report, and GPL notices are attached.'

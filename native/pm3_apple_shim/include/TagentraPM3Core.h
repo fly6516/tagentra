@@ -16,14 +16,15 @@ extern "C" {
 #endif
 
 #define TAGENTRA_PM3_ABI_MAJOR 2u
-#define TAGENTRA_PM3_ABI_MINOR 0u
+#define TAGENTRA_PM3_ABI_MINOR 1u
 #define TAGENTRA_PM3_ABI_VERSION ((TAGENTRA_PM3_ABI_MAJOR << 16u) | TAGENTRA_PM3_ABI_MINOR)
 
 enum tagentra_pm3_capability {
     TAGENTRA_PM3_CAP_TCP_ENDPOINT = 1ull << 0,
     TAGENTRA_PM3_CAP_RESOURCE_ROOT = 1ull << 1,
     TAGENTRA_PM3_CAP_STREAMING_OUTPUT = 1ull << 2,
-    TAGENTRA_PM3_CAP_COOPERATIVE_CANCEL = 1ull << 3
+    TAGENTRA_PM3_CAP_COOPERATIVE_CANCEL = 1ull << 3,
+    TAGENTRA_PM3_CAP_STORAGE_ROOT = 1ull << 4
 };
 
 typedef void (*tagentra_pm3_output_callback)(const char *utf8,
@@ -49,6 +50,8 @@ TAGENTRA_PM3_EXPORT const char *tagentra_pm3_upstream_revision(void);
 TAGENTRA_PM3_EXPORT int tagentra_pm3_initialize(void);
 TAGENTRA_PM3_EXPORT int tagentra_pm3_initialize_endpoint(const char *endpoint);
 TAGENTRA_PM3_EXPORT int tagentra_pm3_set_resource_root(const char *absolute_path);
+TAGENTRA_PM3_EXPORT int tagentra_pm3_set_storage_root(const char *absolute_path);
+TAGENTRA_PM3_EXPORT const char *tagentra_pm3_storage_root(void);
 TAGENTRA_PM3_EXPORT void tagentra_pm3_set_output_callback(
     tagentra_pm3_output_callback callback,
     void *context);

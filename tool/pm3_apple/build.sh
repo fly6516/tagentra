@@ -68,6 +68,10 @@ if [[ -n "$EXPECTED_SHA" && "$ACTUAL_SHA" != "$EXPECTED_SHA" ]]; then
   exit 1
 fi
 
+python3 "$SCRIPT_DIR/audit_file_io.py" \
+  --source "$SOURCE_DIR" \
+  --report "$OUTPUT/TagentraPM3Core-io-audit.json"
+
 python3 "$SCRIPT_DIR/prepare_upstream.py" \
   --source "$SOURCE_DIR" \
   --shim "$PROJECT_ROOT/native/pm3_apple_shim" \
@@ -106,12 +110,13 @@ build_slice() {
     -DSKIPWHEREAMISYSTEM=1
   cmake --build "$build_dir" --config Release --target pm3rrg_rdv4 --parallel
 
-  local framework
-  framework="$(find "$build_dir" -type d -name TagentraPM3Core.framework -print -quit)"
-  if [[ -z "$framework" ]]; then
+  local framework_binary framework
+  framework_binary="$(find "$build_dir" -type f -path '*/TagentraPM3Core.framework/TagentraPM3Core' -print -quit)"
+  if [[ -z "$framework_binary" ]]; then
     echo "TagentraPM3Core.framework was not produced for $name" >&2
     exit 1
   fi
+  framework="$(dirname "$framework_binary")"
   local destination="$WORK_ROOT/frameworks/$name/TagentraPM3Core.framework"
   mkdir -p "$(dirname "$destination")"
   rm -rf "$destination"
@@ -166,8 +171,8 @@ path, ref, sha = sys.argv[1:]
 with open(path, "w", encoding="utf-8") as output:
     json.dump({
         "abi_major": 2,
-        "abi_minor": 0,
-        "capabilities": ["tcp_endpoint", "resource_root", "streaming_output", "cooperative_cancel"],
+        "abi_minor": 1,
+        "capabilities": ["tcp_endpoint", "resource_root", "storage_root", "streaming_output", "cooperative_cancel"],
         "upstream_repository": "https://github.com/RfidResearchGroup/proxmark3.git",
         "upstream_ref": ref,
         "upstream_revision": sha,

@@ -108,7 +108,7 @@ def main() -> None:
         "    # Tagentra requires all symbols to resolve when producing the framework.\n",
         "Apple dynamic_lookup linker option",
     )
-    cmake_path.write_text(text, encoding="utf-8", newline="\n")
+    cmake_path.write_text(text, encoding="utf-8")
 
     pm3 = pm3_source.read_text(encoding="utf-8")
     pm3_open_start = (
@@ -143,7 +143,7 @@ def main() -> None:
         "    }\n"
     )
     pm3 = replace_once(pm3, fatal_connection, safe_connection, "fatal connection path")
-    pm3_source.write_text(pm3, encoding="utf-8", newline="\n")
+    pm3_source.write_text(pm3, encoding="utf-8")
 
     proxmark = proxmark_source.read_text(encoding="utf-8")
     directory_getter = (
@@ -162,7 +162,24 @@ def main() -> None:
         "}\n"
     )
     proxmark = replace_once(proxmark, directory_getter, ios_directory_getter, "executable directory getter")
-    proxmark_source.write_text(proxmark, encoding="utf-8", newline="\n")
+
+    user_directory_getter = (
+        "const char *get_my_user_directory(void) {\n"
+        "    return my_user_directory;\n"
+        "}\n"
+    )
+    ios_user_directory_getter = (
+        "const char *get_my_user_directory(void) {\n"
+        "#ifdef TAGENTRA_PM3_IOS\n"
+        "    extern const char *tagentra_pm3_storage_root(void);\n"
+        "    const char *storage_root = tagentra_pm3_storage_root();\n"
+        "    if (storage_root != NULL) return storage_root;\n"
+        "#endif\n"
+        "    return my_user_directory;\n"
+        "}\n"
+    )
+    proxmark = replace_once(proxmark, user_directory_getter, ios_user_directory_getter, "user directory getter")
+    proxmark_source.write_text(proxmark, encoding="utf-8")
 
     ui = ui_source.read_text(encoding="utf-8")
     output_point = (
@@ -177,7 +194,7 @@ def main() -> None:
         "#endif\n"
     )
     ui = replace_once(ui, output_point, ios_output_point, "filtered log output point")
-    ui_source.write_text(ui, encoding="utf-8", newline="\n")
+    ui_source.write_text(ui, encoding="utf-8")
 
     util = util_source.read_text(encoding="utf-8")
     function_start = "int kbd_enter_pressed(void) {\n"
@@ -191,7 +208,7 @@ def main() -> None:
         "        return 1;\n"
         "    }\n",
     )
-    util_source.write_text(util, encoding="utf-8", newline="\n")
+    util_source.write_text(util, encoding="utf-8")
 
     cmdparser = cmdparser_source.read_text(encoding="utf-8")
     system_call = (
@@ -212,7 +229,7 @@ def main() -> None:
         cmdparser = cmdparser.replace(system_call, ios_system_call, 1)
     elif "system(" in cmdparser:
         raise RuntimeError("RRG system command implementation changed")
-    cmdparser_source.write_text(cmdparser, encoding="utf-8", newline="\n")
+    cmdparser_source.write_text(cmdparser, encoding="utf-8")
 
 
 if __name__ == "__main__":
