@@ -3,7 +3,7 @@ Pod::Spec.new do |s|
   s.version          = '0.1.0'
   s.summary          = 'Tagentra PM3 BLE/TCP bridge.'
   s.homepage         = 'https://github.com/fly6516/tagentra'
-  s.license          = { :type => 'GPL-3.0-or-later', :file => '../../../LICENSE' }
+  s.license          = { :type => 'GPL-3.0-or-later' }
   s.author           = { 'Tagentra contributors' => 'noreply@example.invalid' }
   s.source           = { :path => '.' }
   s.source_files     = 'Classes/**/*'
