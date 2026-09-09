@@ -6,7 +6,7 @@ Pod::Spec.new do |s|
   s.license          = { :type => 'GPL-3.0-or-later' }
   s.author           = { 'Tagentra contributors' => 'noreply@example.invalid' }
   s.source           = { :path => '.' }
-  s.source_files     = 'Classes/**/*'
+  s.source_files     = 'tagentra_pm3/Sources/tagentra_pm3/**/*'
   s.dependency 'Flutter'
   s.platform = :ios, '15.0'
   s.swift_version = '5.9'

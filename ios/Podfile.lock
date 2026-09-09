@@ -1,21 +1,15 @@
 PODS:
   - Flutter (1.0.0)
-  - tagentra_pm3 (0.1.0):
-    - Flutter
 
 DEPENDENCIES:
   - Flutter (from `Flutter`)
-  - tagentra_pm3 (from `.symlinks/plugins/tagentra_pm3/ios`)
 
 EXTERNAL SOURCES:
   Flutter:
     :path: Flutter
-  tagentra_pm3:
-    :path: ".symlinks/plugins/tagentra_pm3/ios"
 
 SPEC CHECKSUMS:
   Flutter: 71a624a5bc0c04062bf19101d501e466baf2fb47
-  tagentra_pm3: b0518244cd8d47981198932f0e29d59a55dc066c
 
 PODFILE CHECKSUM: ce2a4dd764e1c7aeed6a7cdc5e61d092b6dc6d32
 

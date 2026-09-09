@@ -16,7 +16,7 @@ checksum = subprocess.check_output(
 if len(checksum) != 64 or any(c not in "0123456789abcdef" for c in checksum):
     raise SystemExit("swift package returned an invalid checksum")
 root = Path(__file__).resolve().parents[2]
-template = root / "packages/tagentra_pm3/ios/Package.swift.in"
+template = root / "packages/tagentra_pm3/ios/tagentra_pm3/Package.swift.in"
 manifest = template.with_name("Package.swift")
 text = template.read_text(encoding="utf-8")
 if text.count("@CHECKSUM@") != 1:
