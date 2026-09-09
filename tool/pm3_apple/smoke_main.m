@@ -44,6 +44,15 @@ static size_t occurrence_count(const char *text, const char *needle) {
     return count;
 }
 
+static bool same_directory(const char *first, const char *second) {
+    struct stat first_details;
+    struct stat second_details;
+    return stat(first, &first_details) == 0 &&
+           stat(second, &second_details) == 0 &&
+           first_details.st_dev == second_details.st_dev &&
+           first_details.st_ino == second_details.st_ino;
+}
+
 static int run_smoke(void) {
     @autoreleasepool {
         if (tagentra_pm3_abi_version() != TAGENTRA_PM3_ABI_VERSION) return fail("ABI version");
@@ -79,7 +88,7 @@ static int run_smoke(void) {
         if (tagentra_pm3_execute("prefs get savepaths") != TAGENTRA_PM3_OK) return fail("get save paths");
         if (occurrence_count(output_text, storage) < 3) return fail("controlled save paths");
         char cwd[4096];
-        if (getcwd(cwd, sizeof(cwd)) == NULL || strcmp(cwd, storage) != 0) return fail("controlled cwd");
+        if (getcwd(cwd, sizeof(cwd)) == NULL || !same_directory(cwd, storage)) return fail("controlled cwd");
         tagentra_pm3_shutdown();
         if (tagentra_pm3_initialize() != TAGENTRA_PM3_OK) return fail("reinitialize");
         tagentra_pm3_shutdown();

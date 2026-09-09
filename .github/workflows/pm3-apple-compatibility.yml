@@ -24,7 +24,7 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Read current release
         id: current
         run: echo "ref=$(python3 -c 'import json; print(json.load(open("tool/pm3_apple/refs.json"))["current"]["tag"])')" >> "$GITHUB_OUTPUT"
