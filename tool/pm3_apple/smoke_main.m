@@ -56,9 +56,22 @@ static bool same_directory(const char *first, const char *second) {
 static int run_smoke(void) {
     @autoreleasepool {
         if (tagentra_pm3_abi_version() != TAGENTRA_PM3_ABI_VERSION) return fail("ABI version");
-        if (tagentra_pm3_abi_major() != 2 || tagentra_pm3_abi_minor() != 1) return fail("ABI components");
+        if (tagentra_pm3_abi_major() != 2 || tagentra_pm3_abi_minor() != 2) return fail("ABI components");
         if ((tagentra_pm3_capabilities() & TAGENTRA_PM3_CAP_TCP_ENDPOINT) == 0) return fail("capabilities");
         if ((tagentra_pm3_capabilities() & TAGENTRA_PM3_CAP_STORAGE_ROOT) == 0) return fail("storage capability");
+        if ((tagentra_pm3_capabilities() & TAGENTRA_PM3_CAP_MFKEY32V2) == 0 ||
+            (tagentra_pm3_capabilities() & TAGENTRA_PM3_CAP_FM11_STATICNESTED) == 0) return fail("recovery capabilities");
+        uint64_t recovered_key = 0;
+        if (tagentra_pm3_mfkey32v2(0x12345678, 0x1ad8df2b, 0x1d316024,
+                                    0x620ef048, 0x30d6cb07, 0xc52077e2,
+                                    0x837ac61a, &recovered_key) != TAGENTRA_PM3_OK ||
+            recovered_key != 0xa0a1a2a3a4a5ULL) return fail("mfkey32v2 reference vector");
+        if (tagentra_pm3_mfkey32v2(0, 0, 0, 0, 0, 0, 0, NULL) !=
+            TAGENTRA_PM3_INVALID_ARGUMENT) return fail("mfkey32v2 arguments");
+        if (tagentra_pm3_fm11_candidates(0, 0, 0, 0, "1111") !=
+            TAGENTRA_PM3_NOT_INITIALIZED) return fail("FM11 initialization guard");
+        if (tagentra_pm3_fm11_candidates(0, 16, 0, 0, "1111") !=
+            TAGENTRA_PM3_INVALID_ARGUMENT) return fail("FM11 sector validation");
         if (tagentra_pm3_initialize_endpoint("serial:invalid") != TAGENTRA_PM3_INVALID_ARGUMENT) return fail("endpoint validation");
         if (tagentra_pm3_set_storage_root("relative") != TAGENTRA_PM3_INVALID_ARGUMENT) return fail("relative storage root");
         if (tagentra_pm3_set_storage_root("/path/that/does/not/exist") != TAGENTRA_PM3_INVALID_ARGUMENT) return fail("missing storage root");
@@ -76,6 +89,33 @@ static int run_smoke(void) {
         if (tagentra_pm3_set_storage_root(storage) != TAGENTRA_PM3_OK) return fail("set storage root");
         if (strcmp(tagentra_pm3_storage_root(), storage) != 0) return fail("get storage root");
         if (tagentra_pm3_initialize() != TAGENTRA_PM3_OK) return fail("initialize");
+        if (tagentra_pm3_fm11_candidates(0xa13e4902, 15, 0xd14191b3,
+                                         0x2e9e49fc, "1111") != TAGENTRA_PM3_OK)
+            return fail("FM11 candidate generation");
+        FILE *candidates = fopen("keys_a13e4902_15_d14191b3.dic", "r");
+        if (candidates == NULL) return fail("FM11 candidate file");
+        char first_candidate[32];
+        bool valid_candidate = fgets(first_candidate, sizeof(first_candidate), candidates) != NULL &&
+                               strcmp(first_candidate, "26b5f452e6c6\n") == 0;
+        fclose(candidates);
+        if (!valid_candidate) return fail("FM11 candidate vector");
+        uint64_t matching_key = 0;
+        uint32_t match_count = 0;
+        if (tagentra_pm3_fm11_filter_known_key(0xa13e4902, 15,
+                                               0xd14191b4, 0x26b5f452e6c6ULL,
+                                               0xd14191b3, 0, &matching_key,
+                                               &match_count) != TAGENTRA_PM3_OK ||
+            matching_key != 0x26b5f452e6c6ULL || match_count != 4)
+            return fail("FM11 known-key reference vector");
+        FILE *matches = fopen("keys_a13e4902_15_d14191b3_matches.dic", "r");
+        if (matches == NULL) return fail("FM11 matching dictionary");
+        unsigned match_lines = 0;
+        char match_line[32];
+        while (fgets(match_line, sizeof(match_line), matches) != NULL) match_lines++;
+        fclose(matches);
+        if (match_lines != match_count) return fail("FM11 matching dictionary count");
+        if (tagentra_pm3_fm11_filter_pair(0x12345678, 0, 1, 2) !=
+            TAGENTRA_PM3_INVALID_ARGUMENT) return fail("FM11 missing dictionaries");
         if (tagentra_pm3_set_storage_root("/tmp") != TAGENTRA_PM3_ALREADY_INITIALIZED) return fail("running storage mutation");
         tagentra_pm3_set_output_callback(receive_output, NULL);
         if (tagentra_pm3_execute("help") != TAGENTRA_PM3_OK) return fail("help command");

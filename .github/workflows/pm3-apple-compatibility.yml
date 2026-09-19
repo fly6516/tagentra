@@ -33,6 +33,9 @@ jobs:
       - name: Read pinned revision
         id: revision
         run: |
+          jq -e '.abi_major == 2 and .abi_minor == 2 and
+            (["mfkey32v2", "fm11_staticnested"] - .capabilities | length == 0)' \
+            artifacts/TagentraPM3Core-build.json
           revision="$(python3 -c 'import json; print(json.load(open("artifacts/TagentraPM3Core-build.json"))["upstream_revision"])')"
           echo "sha=$revision" >> "$GITHUB_OUTPUT"
       - name: Link and run simulator smoke test

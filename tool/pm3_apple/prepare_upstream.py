@@ -47,6 +47,39 @@ def main() -> None:
     shutil.copy2(source_shim_header, shim_header)
     shutil.copy2(source_shim_source, shim_source)
 
+    # Compile the upstream card-only algorithms as library entry points. Keep
+    # their source in the corresponding-source archive, not copied into shim.
+    recovery_tools = (
+        ("staticnested_1nt", "tagentra_fm11_staticnested_1nt"),
+        ("staticnested_2x1nt_rf08s", "tagentra_fm11_staticnested_pair"),
+        ("staticnested_2x1nt_rf08s_1key", "tagentra_fm11_staticnested_known"),
+    )
+    generated_tools = []
+    for name, entry in recovery_tools:
+        original = source / "tools" / "mfc" / "card_only" / f"{name}.c"
+        if not original.is_file():
+            raise RuntimeError(f"RRG recovery tool is missing: {original}")
+        tool_text = original.read_text(encoding="utf-8")
+        if tool_text.count("int main(int argc, char *const argv[])") != 1:
+            raise RuntimeError(f"RRG recovery tool entry changed: {original}")
+        # Both pairing tools define the same global lookup tables.
+        prefix = name.replace("staticnested_", "tagentra_")
+        definitions = f"#define main {entry}\n"
+        if name != "staticnested_1nt":
+            definitions += (f"#define i_lfsr16 {prefix}_i_lfsr16\n"
+                            f"#define s_lfsr16 {prefix}_s_lfsr16\n")
+        if name == "staticnested_2x1nt_rf08s_1key":
+            tool_text = replace_once(
+                tool_text,
+                '            printf("MATCH: key2=%012" PRIx64 "\\n", keys2[i]);',
+                '            extern void tagentra_pm3_fm11_match_internal(uint64_t);\n'
+                '            tagentra_pm3_fm11_match_internal(keys2[i]);',
+                "FM11 known-key match output",
+            )
+        generated = embedded_shim / "src" / f"{name}.c"
+        generated.write_text(definitions + tool_text, encoding="utf-8")
+        generated_tools.append(generated)
+
     api = pm3_header.read_text(encoding="utf-8")
     for symbol in ("pm3_open", "pm3_console", "pm3_grabbed_output_get", "pm3_close"):
         if symbol not in api:
@@ -76,7 +109,8 @@ def main() -> None:
         text,
         "add_library(pm3rrg_rdv4 SHARED\n",
         "add_library(pm3rrg_rdv4 SHARED\n"
-        f"        {shim_source.as_posix()}\n",
+        f"        {shim_source.as_posix()}\n"
+        + "".join(f"        {path.as_posix()}\n" for path in generated_tools),
         "experimental library target",
     )
     text = replace_once(

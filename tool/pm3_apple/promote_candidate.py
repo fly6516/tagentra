@@ -14,7 +14,7 @@ data.setdefault("history", {})[candidate["tag"]] = candidate["revision"]
 data["current"] = {
     "tag": candidate["tag"],
     "revision": candidate["revision"],
-    "adapter_revision": 2,
+    "adapter_revision": current["adapter_revision"],
 }
 data["candidate"] = None
 path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")

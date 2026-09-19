@@ -6,8 +6,12 @@ RRG Proxmark3 and the Tagentra compatibility shim are distributed under the
 GNU General Public License, version 3 or (at your option) any later version.
 
 The generated `TagentraPM3Core.xcframework` contains RRG client code and the
-libraries selected by RRG's `client/experimental_lib/CMakeLists.txt`. Their
-copyright notices and license texts remain in the corresponding upstream
+libraries selected by RRG's `client/experimental_lib/CMakeLists.txt`. The
+bundled MFKey32v2 computation and FM11RF08S staticnested candidate generators
+are based on the pinned RRG `tools/mfc/card_reader/mfkey32v2.c` and
+`tools/mfc/card_only/staticnested_*.c` sources; these are not copies of the
+APK's Android shared libraries. The original contributors' copyright notices
+and license texts remain in the corresponding upstream
 source tree. When distributing a generated binary, distribute the complete
 corresponding source for the exact revision recorded in
 `TagentraPM3Core-build.json`, including this repository's shim and build

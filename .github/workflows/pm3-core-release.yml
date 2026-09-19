@@ -26,6 +26,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
       - run: ./tool/pm3_apple/build.sh --ref '${{ steps.version.outputs.ref }}'
+      - name: Verify recovery ABI metadata
+        run: |
+          jq -e '.abi_major == 2 and .abi_minor == 2 and
+            (["mfkey32v2", "fm11_staticnested"] - .capabilities | length == 0)' \
+            artifacts/TagentraPM3Core-build.json
       - run: |
           revision="$(jq -r .upstream_revision artifacts/TagentraPM3Core-build.json)"
           ./tool/pm3_apple/smoke_test.sh artifacts/TagentraPM3Core.xcframework "$revision"

@@ -171,8 +171,8 @@ path, ref, sha = sys.argv[1:]
 with open(path, "w", encoding="utf-8") as output:
     json.dump({
         "abi_major": 2,
-        "abi_minor": 1,
-        "capabilities": ["tcp_endpoint", "resource_root", "storage_root", "streaming_output", "cooperative_cancel"],
+        "abi_minor": 2,
+        "capabilities": ["tcp_endpoint", "resource_root", "storage_root", "streaming_output", "cooperative_cancel", "mfkey32v2", "fm11_staticnested"],
         "upstream_repository": "https://github.com/RfidResearchGroup/proxmark3.git",
         "upstream_ref": ref,
         "upstream_revision": sha,

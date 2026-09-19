@@ -2,6 +2,7 @@
 #include "TagentraPM3Core.h"
 
 #include <stdbool.h>
+#include <inttypes.h>
 #include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,6 +13,7 @@
 
 #include "pm3.h"
 #include "fileutils.h"
+#include "crapto1/crapto1.h"
 
 #ifndef TAGENTRA_PM3_REVISION
 #define TAGENTRA_PM3_REVISION "unknown"
@@ -27,8 +29,18 @@ static pthread_mutex_t tagentra_execution_lock = PTHREAD_MUTEX_INITIALIZER;
 static _Thread_local char tagentra_error[512];
 static char *tagentra_resource_root;
 static char *tagentra_storage_root;
+static _Thread_local uint64_t tagentra_fm11_first_match;
+static _Thread_local uint32_t tagentra_fm11_match_count;
+static _Thread_local FILE *tagentra_fm11_match_file;
+
+void tagentra_pm3_fm11_match_internal(uint64_t key) {
+    if (tagentra_fm11_match_count++ == 0) tagentra_fm11_first_match = key;
+    if (tagentra_fm11_match_file != NULL)
+        fprintf(tagentra_fm11_match_file, "%012" PRIx64 "\n", key);
+}
 
 static void tagentra_set_error(const char *message);
+static int tagentra_apply_storage_root(void);
 
 const char *tagentra_pm3_resource_root_internal(void) {
     return tagentra_resource_root;
@@ -112,7 +124,145 @@ uint32_t tagentra_pm3_abi_minor(void) { return TAGENTRA_PM3_ABI_MINOR; }
 uint64_t tagentra_pm3_capabilities(void) {
     return TAGENTRA_PM3_CAP_TCP_ENDPOINT | TAGENTRA_PM3_CAP_RESOURCE_ROOT |
            TAGENTRA_PM3_CAP_STREAMING_OUTPUT | TAGENTRA_PM3_CAP_COOPERATIVE_CANCEL |
-           TAGENTRA_PM3_CAP_STORAGE_ROOT;
+           TAGENTRA_PM3_CAP_STORAGE_ROOT | TAGENTRA_PM3_CAP_MFKEY32V2 |
+           TAGENTRA_PM3_CAP_FM11_STATICNESTED;
+}
+
+int tagentra_pm3_mfkey32v2(uint32_t uid, uint32_t nt0, uint32_t nr0_enc,
+                            uint32_t ar0_enc, uint32_t nt1, uint32_t nr1_enc,
+                            uint32_t ar1_enc, uint64_t *key) {
+    if (key == NULL) return TAGENTRA_PM3_INVALID_ARGUMENT;
+    *key = 0;
+    const uint32_t ks0 = ar0_enc ^ prng_successor(nt0, 64);
+    const uint32_t ks1 = ar1_enc ^ prng_successor(nt1, 64);
+    struct Crypto1State *states = lfsr_recovery32(ks0, 0);
+    if (states == NULL) return TAGENTRA_PM3_ERROR;
+    int result = TAGENTRA_PM3_ERROR;
+    for (struct Crypto1State *state = states; state->odd | state->even; ++state) {
+        lfsr_rollback_word(state, 0, 0);
+        lfsr_rollback_word(state, nr0_enc, 1);
+        lfsr_rollback_word(state, uid ^ nt0, 0);
+        uint64_t candidate;
+        crypto1_get_lfsr(state, &candidate);
+        crypto1_word(state, uid ^ nt1, 0);
+        crypto1_word(state, nr1_enc, 1);
+        if (ks1 == crypto1_word(state, 0, 0)) {
+            *key = candidate;
+            result = TAGENTRA_PM3_OK;
+            break;
+        }
+    }
+    free(states);
+    return result;
+}
+
+int tagentra_fm11_staticnested_1nt(int argc, char *const argv[]);
+int tagentra_fm11_staticnested_pair(int argc, char *const argv[]);
+int tagentra_fm11_staticnested_known(int argc, char *const argv[]);
+
+static int tagentra_run_fm11(int (*entry)(int, char *const []),
+                             int argc, char *const argv[],
+                             const char *required_a, const char *required_b,
+                             const char *output_a, const char *output_b) {
+    if (!atomic_load(&tagentra_initialized)) return TAGENTRA_PM3_NOT_INITIALIZED;
+    if (pthread_mutex_trylock(&tagentra_execution_lock) != 0) return TAGENTRA_PM3_BUSY;
+    int result = tagentra_apply_storage_root();
+    if (result == TAGENTRA_PM3_OK &&
+        ((required_a != NULL && access(required_a, R_OK) != 0) ||
+         (required_b != NULL && access(required_b, R_OK) != 0)))
+        result = TAGENTRA_PM3_INVALID_ARGUMENT;
+    if (result == TAGENTRA_PM3_OK && entry == tagentra_fm11_staticnested_known) {
+        tagentra_fm11_match_file = fopen(output_a, "w");
+        if (tagentra_fm11_match_file == NULL) result = TAGENTRA_PM3_ERROR;
+    }
+    if (result == TAGENTRA_PM3_OK) {
+        result = entry(argc, argv) == 0 ? TAGENTRA_PM3_OK : TAGENTRA_PM3_ERROR;
+    }
+    if (tagentra_fm11_match_file != NULL) {
+        const bool write_failed = ferror(tagentra_fm11_match_file) != 0;
+        if (fclose(tagentra_fm11_match_file) != 0 || write_failed)
+            result = TAGENTRA_PM3_ERROR;
+        tagentra_fm11_match_file = NULL;
+    }
+    if (result == TAGENTRA_PM3_OK &&
+        ((output_a != NULL && access(output_a, R_OK) != 0) ||
+         (output_b != NULL && access(output_b, R_OK) != 0)))
+        result = TAGENTRA_PM3_ERROR;
+    pthread_mutex_unlock(&tagentra_execution_lock);
+    return result;
+}
+
+static bool tagentra_valid_sector(unsigned sector) {
+    return sector < 16 || (sector >= 32 && sector < 40);
+}
+
+static void tagentra_candidate_name(char *buffer, size_t length,
+                                    uint32_t uid, unsigned sector, uint32_t nt,
+                                    bool filtered) {
+    snprintf(buffer, length, "keys_%08x_%02u_%08x%s.dic", uid, sector, nt,
+             filtered ? "_filtered" : "");
+}
+
+int tagentra_pm3_fm11_candidates(uint32_t uid, unsigned sector, uint32_t nt,
+                                  uint32_t nt_enc, const char *parity_errors) {
+    if (!tagentra_valid_sector(sector) || parity_errors == NULL ||
+        strlen(parity_errors) != 4 || strspn(parity_errors, "01") != 4)
+        return TAGENTRA_PM3_INVALID_ARGUMENT;
+    char uid_arg[9], sec_arg[4], nt_arg[9], enc_arg[9];
+    snprintf(uid_arg, sizeof(uid_arg), "%08x", uid);
+    snprintf(sec_arg, sizeof(sec_arg), "%u", sector);
+    snprintf(nt_arg, sizeof(nt_arg), "%08x", nt);
+    snprintf(enc_arg, sizeof(enc_arg), "%08x", nt_enc);
+    char *argv[] = {"staticnested_1nt", uid_arg, sec_arg, nt_arg,
+                    enc_arg, (char *)parity_errors};
+    char output[48];
+    tagentra_candidate_name(output, sizeof(output), uid, sector, nt, false);
+    return tagentra_run_fm11(tagentra_fm11_staticnested_1nt, 6, argv,
+                            NULL, NULL, output, NULL);
+}
+
+int tagentra_pm3_fm11_filter_pair(uint32_t uid, unsigned sector,
+                                  uint32_t nt_a, uint32_t nt_b) {
+    if (!tagentra_valid_sector(sector) || nt_a == nt_b)
+        return TAGENTRA_PM3_INVALID_ARGUMENT;
+    char first[48], second[48];
+    char filtered_a[48], filtered_b[48];
+    tagentra_candidate_name(first, sizeof(first), uid, sector, nt_a, false);
+    tagentra_candidate_name(second, sizeof(second), uid, sector, nt_b, false);
+    tagentra_candidate_name(filtered_a, sizeof(filtered_a), uid, sector, nt_a, true);
+    tagentra_candidate_name(filtered_b, sizeof(filtered_b), uid, sector, nt_b, true);
+    char *argv[] = {"staticnested_2x1nt_rf08s", first, second};
+    return tagentra_run_fm11(tagentra_fm11_staticnested_pair, 3, argv,
+                            first, second, filtered_a, filtered_b);
+}
+
+int tagentra_pm3_fm11_filter_known_key(uint32_t uid, unsigned sector,
+                                       uint32_t known_nt, uint64_t known_key,
+                                       uint32_t target_nt, int filtered,
+                                       uint64_t *first_match, uint32_t *match_count) {
+    if (!tagentra_valid_sector(sector) || known_nt == target_nt ||
+        known_key > UINT64_C(0xffffffffffff) || (filtered != 0 && filtered != 1) ||
+        first_match == NULL || match_count == NULL)
+        return TAGENTRA_PM3_INVALID_ARGUMENT;
+    *first_match = 0;
+    *match_count = 0;
+    char nonce[9], key[13], target[48];
+    char matches[48];
+    snprintf(nonce, sizeof(nonce), "%08x", known_nt);
+    snprintf(key, sizeof(key), "%012llx", (unsigned long long)known_key);
+    tagentra_candidate_name(target, sizeof(target), uid, sector, target_nt, filtered);
+    snprintf(matches, sizeof(matches), "keys_%08x_%02u_%08x_matches.dic",
+             uid, sector, target_nt);
+    char *argv[] = {"staticnested_2x1nt_rf08s_1key", nonce, key, target};
+    tagentra_fm11_first_match = 0;
+    tagentra_fm11_match_count = 0;
+    int result = tagentra_run_fm11(tagentra_fm11_staticnested_known, 4, argv,
+                                  target, NULL, matches, NULL);
+    if (result == TAGENTRA_PM3_OK) {
+        *first_match = tagentra_fm11_first_match;
+        *match_count = tagentra_fm11_match_count;
+    }
+    return result;
 }
 
 const char *tagentra_pm3_upstream_revision(void) {
